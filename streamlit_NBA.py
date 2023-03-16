@@ -5,7 +5,7 @@ import random
 from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error
-from IPython.display import display, HTML
+# from IPython.display import display, HTML
 from sklearn.preprocessing import StandardScaler
 import warnings
 import matplotlib.pyplot as plt
