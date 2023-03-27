@@ -95,7 +95,7 @@ def get_five(data_len):
 		random_set.append(random_index)
 	return random_set
 
-def get_model(standings, parsed_data):
+def get_model(standings, parsed_data, params):
 	# Train data
 	teams = standings["Team"]
 	team_wins = standings["Wins"]
@@ -145,7 +145,7 @@ def get_model(standings, parsed_data):
 		for j in range(num_players):
 			total_sal += salaries[all_combos[i][j]]
 			
-		if total_sal <= desired_yearly_sal_max and total_sal >= desired_yearly_sal_min:  
+		if total_sal <= params["max_values"] and total_sal >= params["min_values"]:  
 			team_salaries.append((total_sal, all_combos[i]))
 
 	extra_test_X = []
@@ -325,18 +325,26 @@ def get_overlap_fig(info, top_10_teams, bot_10_teams):
 	fig.update_layout(title_text="Players Currently in Top, Middle, or Bottom Teams from 2021-22 Season")
 
 	return fig
-		
 
-def main():
+@st.cache_data
+def cache_get_data():
 	standings, salaries, combined_data, team_salaries = get_data()
 
-	print(standings)
+	return standings, salaries, combined_data, team_salaries
 
+@st.cache_data
+def cache_get_model(standings, salaries, combined_data, team_salaries, params):
 	parsed_data = parse_data(combined_data)
 
-	model, extra_test_X, extra_teams_X, temp_data, new_parsed_data = get_model(standings, parsed_data)
+	model, extra_test_X, extra_teams_X, temp_data, new_parsed_data = get_model(standings, parsed_data, params)
 	extra_pred_y = model.predict(extra_test_X)
 	
+	return parsed_data, model, extra_test_X, extra_teams_X, temp_data, new_parsed_data, extra_pred_y
+
+def main():
+	standings, salaries, combined_data, team_salaries = cache_get_data()
+
+	print(standings)
 
 	st.markdown("#### Overview")
 	st.plotly_chart(get_standings_fig(standings), use_container_width=True)
@@ -346,16 +354,39 @@ def main():
 
 	st.markdown("#### Team Generator")
 
+	min_values = st.slider(
+			'Select desired yearly salary minimum',
+			min_value=20000000, max_value=60000000, step=100000)
 
+	max_values = st.slider(
+			'Select desired yearly salary maximum',
+			min_value=60000000, max_value=100000000, step=100000)
+
+	min_minutes = st.slider(
+			'Select minimum minutes played',
+			min_value=0, max_value=48, value=24)
+
+	min_games = st.slider(
+			'Select minimum games played',
+			min_value=0, max_value=82, value=41)
+
+	# st.write('Values:', values)
+
+	params = {"min_values":min_values,
+			"max_values":max_values,
+			"min_minutes":min_minutes,
+			"min_games":min_games}
+
+	parsed_data, model, extra_test_X, extra_teams_X, temp_data, new_parsed_data, extra_pred_y = cache_get_model(standings, salaries, combined_data, team_salaries, params)
 
 	info = get_pred_info(extra_pred_y, extra_teams_X, temp_data, new_parsed_data, top_n=5)
-	params = {"Players Considered": len(parsed_data), "Position Matters": False, "Size of Team": num_players, "Min Games Played": min_games_played, "Min Minutes Played": min_min_played, "Salary Range (Min)": "${:,}".format(desired_yearly_sal_min), "Salary Range (Max)": "${:,}".format(desired_yearly_sal_max)}	
+	params = {"Players Considered": len(parsed_data), "Position Matters": False, "Size of Team": num_players, "Min Games Played": params["min_games"], "Min Minutes Played": params["min_minutes"], "Salary Range (Min)": "${:,}".format(params["min_values"]), "Salary Range (Max)": "${:,}".format(params["max_values"])}	
 	params_df = pd.DataFrame({"Parameters": params})
 	params_df.T
 
 	rank = st.selectbox("Rank", (1, 2, 3, 4, 5))
 
-	stats, averages, player_names, total_salary, num_wins = info[rank]
+	stats, averages, player_names, total_salary, num_wins = info[rank - 1]
 	stats
 
 	st.markdown("##### Individual Team Stats")
