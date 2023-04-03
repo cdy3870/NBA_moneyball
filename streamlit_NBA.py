@@ -226,13 +226,11 @@ def get_salaries_fig(standings, team_salaries, option):
 
 	return fig
 
-def get_stats_fig(parsed_data, predicted_avgs):
+def get_stats_fig(parsed_data, predicted_avgs, high_or_low="Higher"):
 	suns_starters = ["Devin Booker", "Chris Paul", "Mikal Bridges", "Deandre Ayton", "Jae Crowder"]
 	warrs_starters = ["Steph Curry", "Klay Thompson", "Draymond Green", "Otto Porter Jr.", "Andrew Wiggings"]
 	heat_starters = ["Jimmy Butler", "Bam Adebayo", "Duncan Robinson", "PJ Tucker", "Kyle Lowry"]
 
-
-	columns = ["PER", "TS%", "ORB%", "DRB%", "TRB%", "BLK%", "STL%"]
 	subset = parsed_data[parsed_data["Player"].isin(suns_starters)]
 	subset_avgs_suns = pd.DataFrame(subset.mean(axis=0).round(1))
 
@@ -242,12 +240,12 @@ def get_stats_fig(parsed_data, predicted_avgs):
 	subset = parsed_data[parsed_data["Player"].isin(warrs_starters)]
 	subset_avgs_warrs = pd.DataFrame(subset.mean(axis=0).round(1))
 
-	fig = make_subplots(rows=3, cols=3, subplot_titles=["PER", "TS%", "ORB%", "DRB%", "TRB%", "BLK%", "STL%"])
-	row = 1
-	col = 1
+	if high_or_low == "Higher":
+		fig = make_subplots(rows=3, cols=3, subplot_titles=["PER", "TS%", "ORB%", "DRB%", "TRB%", "BLK%", "STL%"])
+		row = 1
+		col = 1
 
-	for column in parsed_data.iloc[:, 2:23]:
-		if column in columns:
+		for column in ["PER", "TS%", "ORB%", "DRB%", "TRB%", "BLK%", "STL%"]:
 			x = ["Suns", 'Heat', 'Warriors', "Predicted"]
 			y = [subset_avgs_suns.loc[column].values[0], subset_avgs_heat.loc[column].values[0], subset_avgs_warrs.loc[column].values[0], predicted_avgs[column].values[0]]
 			# axes[row, col].bar(x, y, color=['orange', 'red', 'blue', 'black'])
@@ -261,27 +259,24 @@ def get_stats_fig(parsed_data, predicted_avgs):
 			if col == 4:
 				col = 1
 				row += 1
+	else:
+		fig = make_subplots(rows=2, cols=1, subplot_titles=["TOV%", "2021-22 Salary"])
+		row = 1
+		col = 1
 
-	fig.update_layout(height=600, width=600, title_text="Team Averages, Higher is Better")
+		for column in ["TOV%", "2021-22 Salary"]:
+			x = ["Suns", 'Heat', 'Warriors', "Predicted"]
+			y = [subset_avgs_suns.loc[column].values[0], subset_avgs_heat.loc[column].values[0], subset_avgs_warrs.loc[column].values[0], predicted_avgs[column].values[0]]
+			fig.append_trace(go.Bar(x=x, y=y, marker_color=['orange', 'red', 'blue', 'black']), row=row, col=col)
+			row += 1
+			print(row)
+			print(col)
+			print(y)
+			print(column)
+
+	fig.update_layout(height=600, width=600, title_text="Team Averages")
 	fig.update(layout_showlegend=False)
 
-
-	# fig, axes = px.subplots(1, 2, figsize=(10, 5))
-	# row = 0
-	# col = 0
-
-	# fig.suptitle("Team Averages, Lower is Better", fontsize=20)
-	# for column in parsed_data.iloc[:, 2:23]:
-	#     if column in ["TOV%"]:
-	#         x = ["Suns", 'Heat', 'Warriors', "Predicted"]
-	#         y = [subset_avgs_suns.loc[column].values[0], subset_avgs_heat.loc[column].values[0], subset_avgs_warrs.loc[column].values[0], predicted_avgs[column].values[0]]
-	#         axes[0].bar(x, y, color=['orange', 'red', 'blue', 'black'])
-	#         axes[0].set_title(column)
-	#     if column in ["2021-22 Salary"]:
-	#         x = ["Suns", 'Heat', 'Warriors', "Predicted"]
-	#         y = [subset_avgs_suns.loc[column].values[0], subset_avgs_heat.loc[column].values[0], subset_avgs_warrs.loc[column].values[0], predicted_avgs[column].values[0]]
-	#         axes[1].bar(x, y, color=['orange', 'red', 'blue', 'black'])
-	#         axes[1].set_title(column)        
 
 	return fig
 
@@ -297,7 +292,7 @@ def get_overlap_fig(info, top_10_teams, bot_10_teams):
 		bot_overlap = len(player_teams.intersection(bot_10_teams))
 
 		if top_overlap == 0: 
-			sizes = [bot_overlap * 10, 100 - (bot_overlap * 10)]		
+			sizes = [bot_overlap * 10, 100 - (bot_overlap * 10)]        
 			labels=["In Bottom-10", "In Mid-Tier"]
 
 		elif bot_overlap == 0:
@@ -342,6 +337,8 @@ def cache_get_model(standings, salaries, combined_data, team_salaries, params):
 	return parsed_data, model, extra_test_X, extra_teams_X, temp_data, new_parsed_data, extra_pred_y
 
 def main():
+	metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
+	metric_col1.markdown('##### Author: Calvin Yu\n')
 	standings, salaries, combined_data, team_salaries = cache_get_data()
 
 	print(standings)
@@ -352,35 +349,37 @@ def main():
 	st.plotly_chart(get_salaries_fig(standings, team_salaries, year), use_container_width=True)
 
 
-	st.markdown("#### Team Generator")
+	with st.sidebar:
+		"Configure the details of your starting 5"
+		min_values = st.slider(
+				'Select desired yearly salary minimum',
+				min_value=20000000, max_value=60000000, step=100000)
 
-	min_values = st.slider(
-			'Select desired yearly salary minimum',
-			min_value=20000000, max_value=60000000, step=100000)
+		max_values = st.slider(
+				'Select desired yearly salary maximum',
+				min_value=60000000, max_value=100000000, step=100000)
 
-	max_values = st.slider(
-			'Select desired yearly salary maximum',
-			min_value=60000000, max_value=100000000, step=100000)
+		min_minutes = st.slider(
+				'Select minimum minutes played',
+				min_value=0, max_value=48, value=24)
 
-	min_minutes = st.slider(
-			'Select minimum minutes played',
-			min_value=0, max_value=48, value=24)
+		min_games = st.slider(
+				'Select minimum games played',
+				min_value=0, max_value=82, value=41)
 
-	min_games = st.slider(
-			'Select minimum games played',
-			min_value=0, max_value=82, value=41)
+		# st.write('Values:', values)
 
-	# st.write('Values:', values)
+		params = {"min_values":min_values,
+				"max_values":max_values,
+				"min_minutes":min_minutes,
+				"min_games":min_games}
 
-	params = {"min_values":min_values,
-			"max_values":max_values,
-			"min_minutes":min_minutes,
-			"min_games":min_games}
+	st.markdown("#### Generated Teams")
 
 	parsed_data, model, extra_test_X, extra_teams_X, temp_data, new_parsed_data, extra_pred_y = cache_get_model(standings, salaries, combined_data, team_salaries, params)
 
 	info = get_pred_info(extra_pred_y, extra_teams_X, temp_data, new_parsed_data, top_n=5)
-	params = {"Players Considered": len(parsed_data), "Position Matters": False, "Size of Team": num_players, "Min Games Played": params["min_games"], "Min Minutes Played": params["min_minutes"], "Salary Range (Min)": "${:,}".format(params["min_values"]), "Salary Range (Max)": "${:,}".format(params["max_values"])}	
+	params = {"Players Considered": len(parsed_data), "Position Matters": False, "Size of Team": num_players, "Min Games Played": params["min_games"], "Min Minutes Played": params["min_minutes"], "Salary Range (Min)": "${:,}".format(params["min_values"]), "Salary Range (Max)": "${:,}".format(params["max_values"])} 
 	params_df = pd.DataFrame({"Parameters": params})
 	params_df.T
 
@@ -389,14 +388,16 @@ def main():
 	stats, averages, player_names, total_salary, num_wins = info[rank - 1]
 	stats
 
-	st.markdown("##### Individual Team Stats")
-	st.plotly_chart(get_stats_fig(parsed_data, averages), use_container_width=True)
+	my_expander = st.expander(label='Individual Team Stats')
+	with my_expander:
+		high_or_low = st.radio("Higher or Lower Value is Better", ("Higher", "Lower"))		
+		st.plotly_chart(get_stats_fig(parsed_data, averages, high_or_low=high_or_low), use_container_width=True)
 
-
-	st.markdown("##### All 5 Team Stats")
+	my_expander_2 = st.expander(label='All 5 Team Stats')
 	top_10_teams = standings["Team"][:10].values
 	bot_10_teams = standings["Team"][-10:]
-	st.plotly_chart(get_overlap_fig(info, top_10_teams, bot_10_teams))
+	with my_expander_2:
+		st.plotly_chart(get_overlap_fig(info, top_10_teams, bot_10_teams))
 
 
 if __name__ == "__main__":
